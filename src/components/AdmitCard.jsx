@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -26,7 +26,7 @@ const AdmitCard = ({ user }) => {
   const [selectedSemester, setSelectedSemester] = useState('');
   const [semesterLoading, setSemesterLoading] = useState(false);
   const fileInputRef = useRef(null);
-  // showAbcForm removed — ABC ID form is always visible when ABC ID is missing
+  // showAbcForm removed â€” ABC ID form is always visible when ABC ID is missing
 
   const fetchStudentData = async (semesterKey = selectedSemester) => {
     setLoading(!studentData);
@@ -176,8 +176,8 @@ const AdmitCard = ({ user }) => {
 
   /**
    * Extracts the 2-digit batch code from a roll number.
-   * UG:  NACBCA25015 → '25', 03NAC25001 → '25', 03NAC24001 → '24'
-   * PG:  111NAC..., 153NAC..., 155NAC..., 156NAC..., 181NAC..., NACMFC... → 'pg'
+   * UG:  NACBCA25015 â†’ '25', 03NAC25001 â†’ '25', 03NAC24001 â†’ '24'
+   * PG:  111NAC..., 153NAC..., 155NAC..., 156NAC..., 181NAC..., NACMFC... â†’ 'pg'
    */
   const extractBatchCodeFromRollNo = (rollNo) => {
     const roll = String(rollNo || '').trim().toUpperCase();
@@ -631,105 +631,20 @@ const AdmitCard = ({ user }) => {
                 </div>
               </div>
 
-              {isPG ? (
-                // PG 1st & 2nd Sem 2025 — uses same subjects[] array as UG (built by admitCardService)
-                (studentData.studentType === 'PG2ND2025' || studentData.studentType === 'PG2025') && studentData.subjects?.length > 0 ? (
-                  <div className="subjects-table">
-                    <table>
-                      <thead>
-                        <tr>
-                          {studentData.subjects.map((subject) => (
-                            <th key={subject.field}>{subject.label}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr>
-                          {studentData.subjects.map((subject) => (
-                            <td key={subject.field}>{subject.value || ''}</td>
-                          ))}
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                ) : // PG Students - Check if batch 2025 (first year) to show PAPER fields
-                getBatchYear() === '2025' ? (
-                  <div className="subjects-table">
-                    <table>
-                      <thead>
-                        <tr>
-                          {/* Dynamically show headers based on available fields */}
-                          {studentData['PAPER-MTC-101'] ? (
-                            <>
-                              <th>PAPER-MTC-101</th>
-                              <th>PAPER-MTC-102</th>
-                              <th>PAPER-MTC-103</th>
-                              <th>PAPER-MTC-104</th>
-                              <th>PAPER-MTC-105</th>
-                            </>
-                          ) : (
-                            <>
-                              {studentData['PAPER-1.1'] && <th>PAPER-1.1</th>}
-                              {studentData['PAPER-1.2'] && <th>PAPER-1.2</th>}
-                              {studentData['PAPER-1.3'] && <th>PAPER-1.3</th>}
-                              {studentData['PAPER-1.4'] && <th>PAPER-1.4</th>}
-                              {studentData['PAPER-1.5'] && <th>PAPER-1.5</th>}
-                              {studentData['PAPER-1.6'] && <th>PAPER-1.6</th>}
-                              {studentData['PAPER-1.7'] && <th>PAPER-1.7</th>}
-                              {studentData['PAPER-1.8'] && <th>PAPER-1.8</th>}
-                            </>
-                          )}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr>
-                          {studentData['PAPER-MTC-101'] ? (
-                            <>
-                              <td>{studentData['PAPER-MTC-101'] || ''}</td>
-                              <td>{studentData['PAPER-MTC-102'] || ''}</td>
-                              <td>{studentData['PAPER-MTC-103'] || ''}</td>
-                              <td>{studentData['PAPER-MTC-104'] || ''}</td>
-                              <td>{studentData['PAPER-MTC-105'] || ''}</td>
-                            </>
-                          ) : (
-                            <>
-                              {studentData['PAPER-1.1'] !== undefined && <td>{studentData['PAPER-1.1'] || ''}</td>}
-                              {studentData['PAPER-1.2'] !== undefined && <td>{studentData['PAPER-1.2'] || ''}</td>}
-                              {studentData['PAPER-1.3'] !== undefined && <td>{studentData['PAPER-1.3'] || ''}</td>}
-                              {studentData['PAPER-1.4'] !== undefined && <td>{studentData['PAPER-1.4'] || ''}</td>}
-                              {studentData['PAPER-1.5'] !== undefined && <td>{studentData['PAPER-1.5'] || ''}</td>}
-                              {studentData['PAPER-1.6'] !== undefined && <td>{studentData['PAPER-1.6'] || ''}</td>}
-                              {studentData['PAPER-1.7'] !== undefined && <td>{studentData['PAPER-1.7'] || ''}</td>}
-                              {studentData['PAPER-1.8'] !== undefined && <td>{studentData['PAPER-1.8'] || ''}</td>}
-                            </>
-                          )}
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="course-section">
-                    <div className="course-row">
-                      <span className="label">COURSE</span>
-                      <span className="colon">:</span>
-                      <span className="value">{studentData.Course || ''}</span>
-                    </div>
-                  </div>
-                )
-              ) : studentData.subjects?.length > 0 ? (
+              {studentData.subjects?.length > 0 ? (
                 <div className="subjects-table">
                   <table>
                     <thead>
                       <tr>
                         {studentData.subjects.map((subject) => (
-                          <th key={subject.field}>{subject.label}</th>
+                          <th key={subject.field}>{subject.paper || subject.label}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       <tr>
                         {studentData.subjects.map((subject) => (
-                          <td key={subject.field}>{subject.value || ''}</td>
+                          <td key={subject.field}>{subject.subjectName || subject.value || ''}</td>
                         ))}
                       </tr>
                     </tbody>
@@ -797,7 +712,7 @@ const AdmitCard = ({ user }) => {
               {!profileImage && (
                 <div className="requirement-item">
                   <div className="requirement-header">
-                    <h4>📷 Upload Profile Photo <span className="mandatory-badge">Required</span></h4>
+                    <h4>ðŸ“· Upload Profile Photo <span className="mandatory-badge">Required</span></h4>
                   </div>
                   <div className="requirement-content">
                     <input
@@ -828,7 +743,7 @@ const AdmitCard = ({ user }) => {
               {!hasAbcId && (
                 <div className="requirement-item">
                   <div className="requirement-header">
-                    <h4>🪪 ABC ID Registration <span className="mandatory-badge">Required</span></h4>
+                    <h4>ðŸªª ABC ID Registration <span className="mandatory-badge">Required</span></h4>
                   </div>
                   <div className="requirement-content">
                     <form onSubmit={handleAbcIdSubmit} className="abc-id-form">
@@ -873,7 +788,7 @@ const AdmitCard = ({ user }) => {
             <div className="download-section">
               {!canDownload() && (
                 <div className="download-restriction-message">
-                  <p>⚠️ {getDownloadRestrictionMessage()}</p>
+                  <p>âš ï¸ {getDownloadRestrictionMessage()}</p>
                   <p className="restriction-hint">
                     Complete the requirements above to download your admit card
                   </p>

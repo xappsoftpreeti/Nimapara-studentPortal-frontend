@@ -9,17 +9,39 @@ import './GradeSheet.css';
 import { normalizeDeptKey, getPGRowMarks, sumPGTotals, toNum, resolveSemesterClassification } from '../utils/marksheetUtils';
 import { buildPGCourseLine } from '../utils/finalGradeSheetMapper';
 
-const hasAny = (v) => v !== null && v !== undefined && String(v).trim() !== '';
+const SEMESTER_CHOICES = [
+  { value: '1', label: '1st Semester', hint: 'Major CP-1 & CP-2' },
+  { value: '2', label: '2nd Semester', hint: 'Major CP-3 & CP-4' },
+  { value: '3', label: '3rd Semester', hint: 'Major CP-5, CP-6 & CP-7' },
+];
 
-const isPGLikeCourseRow = (course) => {
-  if (!course || typeof course !== 'object') return false;
-  // PG rows commonly carry midsem/endsem/practical + marks; UG rows carry theory/internal/practical.
-  return hasAny(course.midsem) || hasAny(course.endsem) || hasAny(course.practical) || hasAny(course.marks);
-};
-
-const detectIsPGMarksheetLayout = (courses) => {
-  if (!Array.isArray(courses) || courses.length === 0) return false;
-  return courses.some(isPGLikeCourseRow);
+const labelUgPaper = (courseType, selectedSem, majorCount) => {
+  const normalizedType = String(courseType || '').toLowerCase();
+  if (normalizedType.startsWith('major')) {
+    if (selectedSem === '3') return `CORE-1 MAJOR-${majorCount + 4}`;
+    if (selectedSem === '2') return `CORE-1 MAJOR-${majorCount + 2}`;
+    return `CORE-1 MAJOR-${majorCount}`;
+  }
+  if (normalizedType.startsWith('minor')) {
+    return selectedSem === '3' ? 'CORE-2 MINOR-3' : selectedSem === '2' ? 'CORE-2 MINOR-2' : 'CORE-2 MINOR-1';
+  }
+  if (
+    normalizedType.includes('mdc') ||
+    normalizedType.includes('multi disciplinary') ||
+    normalizedType.includes('multidisciplinary')
+  ) {
+    return selectedSem === '3' ? 'MDC-3' : selectedSem === '2' ? 'MDC-2' : 'MDC-1';
+  }
+  if (normalizedType.includes('aec')) {
+    return selectedSem === '3' ? 'AEC-3' : selectedSem === '2' ? 'AEC-2' : 'AEC-1';
+  }
+  if (normalizedType.includes('vac')) {
+    return selectedSem === '3' ? 'VAC-2' : 'VAC-1';
+  }
+  if (normalizedType.includes('sec')) {
+    return selectedSem === '2' ? 'SEC-I' : 'SEC';
+  }
+  return String(courseType || '').toUpperCase();
 };
 
 export default function GradeSheet({ user }) {
@@ -121,6 +143,9 @@ export default function GradeSheet({ user }) {
             grade: s.Grade || '',
             gradePoint: gradePoint ?? '',
             creditPoint: creditPointVal === null ? '' : Number(creditPointVal.toFixed(0)),
+            internal: toNum(s['MidsemMark(10/20)'] ?? s.internal ?? s.midsem),
+            theory: toNum(s.FinalMark ?? s.theory ?? s.endsem),
+            marks: toNum(s.TotalMark ?? s.marks),
           };
         })
         .filter(Boolean);
@@ -147,6 +172,9 @@ export default function GradeSheet({ user }) {
             grade: s.Grade || '',
             gradePoint: gradePoint ?? '',
             creditPoint: creditPoint ?? '',
+            internal: toNum(s['MidsemMark(10/20)'] ?? s.internal ?? s.midsem),
+            theory: toNum(s.FinalMark ?? s.theory ?? s.endsem),
+            marks: toNum(s.TotalMark ?? s.marks),
           };
         })
         .filter(Boolean);
@@ -338,55 +366,57 @@ export default function GradeSheet({ user }) {
         return;
       }
 
-      // Semester 1 (existing flow): Fetch marksheets data using the service
       const { marksheets, studentInfo: apiStudentInfo } = await fetchMarksheetsByRollNo(autonomousRollNo);
+      const semMarksheet = (marksheets || []).find((m) => String(m.semester) === String(selectedSem));
 
-      if (apiStudentInfo && marksheets && marksheets.length > 0) {
-        const sem1Marksheet = marksheets.find(m => String(m.semester) === '1') || marksheets[0];
-        
-        // Store the marksheet data (courses, totals, sgpa)
-        // Format createdAt date to DD/MM/YYYY
-        let publicationDate = data.publicationDate; // fallback to default
-        if (sem1Marksheet.createdAt) {
-          const date = new Date(sem1Marksheet.createdAt);
+      if (!semMarksheet) {
+        setErrorMessage(`No grade sheet is available for semester ${selectedSem}.`);
+        return;
+      }
+
+      if (apiStudentInfo) {
+        let publicationDate = data.publicationDate;
+        if (semMarksheet.createdAt) {
+          const date = new Date(semMarksheet.createdAt);
           const day = String(date.getDate()).padStart(2, '0');
           const month = String(date.getMonth() + 1).padStart(2, '0');
           const year = date.getFullYear();
           publicationDate = `${day}/${month}/${year}`;
         }
-        
+
         setMarksheetData({
-          courses: sem1Marksheet.courses || [],
-          totalCredits: sem1Marksheet.totalCredits || 0,
-          totalCreditPoints: sem1Marksheet.totalCreditPoints || 0,
-          totalGradePoints: Number(((sem1Marksheet.courses || []).reduce((sum, c) => sum + (typeof c?.gradePoint === 'number' ? c.gradePoint : 0), 0)).toFixed(2)),
-          sgpa: sem1Marksheet.sgpa || 0,
-          publicationDate: publicationDate,
+          courses: semMarksheet.courses || [],
+          totalCredits: semMarksheet.totalCredits || 0,
+          totalCreditPoints: semMarksheet.totalCreditPoints || 0,
+          totalGradePoints: Number(((semMarksheet.courses || []).reduce((sum, c) => sum + (typeof c?.gradePoint === 'number' ? c.gradePoint : 0), 0)).toFixed(2)),
+          sgpa: semMarksheet.sgpa || 0,
+          publicationDate,
           classification: resolveSemesterClassification(
-            sem1Marksheet.classification,
-            sem1Marksheet.courses || []
+            semMarksheet.classification,
+            semMarksheet.courses || []
           )
         });
-        
-        const deptFromApi = formatCourseName(apiStudentInfo?.department);
-        const looksPG = detectIsPGMarksheetLayout(sem1Marksheet?.courses || []);
 
-        // PG 1st sem medium of exam is department-based:
-        // - ODIA dept => ODIA
-        // - MATH/CHEMISTRY/COMMERCE/GEOLOGY => ENGLISH
-        // (default ENGLISH)
+        const deptFromApi = formatCourseName(apiStudentInfo?.department);
+        const looksPG = isPGUser;
         const language = looksPG ? detectMediumOfExam(deptFromApi || apiStudentInfo?.department) : 'ENGLISH';
         const courseInfo = looksPG
           ? deptFromApi
             ? buildPGCourseLine(deptFromApi, user?.course)
             : data.studentInfo.course
-          : data.studentInfo.course;
+          : (() => {
+              const majorCourse = (semMarksheet.courses || []).find((course) =>
+                String(course.courseType || '').toLowerCase().startsWith('major')
+              );
+              return majorCourse?.subjectName
+                ? `CORE-1: ${String(majorCourse.subjectName).toUpperCase()}`
+                : data.studentInfo.course;
+            })();
 
-        // Keep CORE-2 only for UG-like semester-1 view; PG reference format doesn't use CORE lines.
         let coreTwoInfo = data.studentInfo.coreTwo;
         if (!looksPG) {
-          if (sem1Marksheet.courses && sem1Marksheet.courses.length > 0) {
-            const minorCourse = sem1Marksheet.courses.find(course =>
+          if (semMarksheet.courses && semMarksheet.courses.length > 0) {
+            const minorCourse = semMarksheet.courses.find((course) =>
               course.courseType && course.courseType.toLowerCase().startsWith('minor')
             );
             coreTwoInfo = minorCourse?.subjectName ? `CORE-2: ${minorCourse.subjectName.toUpperCase()}` : '';
@@ -394,23 +424,19 @@ export default function GradeSheet({ user }) {
         } else {
           coreTwoInfo = '';
         }
-        
-        // Update the data with API values
-        setData(prevData => {
-          const newData = {
-            ...prevData,
-            studentInfo: {
-              ...prevData.studentInfo,
-              name: apiStudentInfo.name || prevData.studentInfo.name,
-              examRollNo: apiStudentInfo.rollNo || prevData.studentInfo.examRollNo, // BA24-003 (College Roll No in display)
-              registrationNo: apiStudentInfo.autonomousRollNo || prevData.studentInfo.registrationNo, // 03NAC24001 (Exam Roll No in display)
-              mediumOfExam: language,
-              course: courseInfo,
-              coreTwo: coreTwoInfo
-            }
-          };
-          return newData;
-        });
+
+        setData((prevData) => ({
+          ...prevData,
+          studentInfo: {
+            ...prevData.studentInfo,
+            name: apiStudentInfo.name || prevData.studentInfo.name,
+            examRollNo: apiStudentInfo.rollNo || prevData.studentInfo.examRollNo,
+            registrationNo: apiStudentInfo.autonomousRollNo || prevData.studentInfo.registrationNo,
+            mediumOfExam: language,
+            course: courseInfo,
+            coreTwo: coreTwoInfo
+          }
+        }));
       }
     } catch (err) {
       console.error('Error fetching student data:', err);
@@ -423,148 +449,140 @@ export default function GradeSheet({ user }) {
   const generatePDF = () => {
     if (gradeSheetRef.current) {
       setDownloading(true);
-      
+
       const originalWidth = gradeSheetRef.current.style.width;
       const originalMaxWidth = gradeSheetRef.current.style.maxWidth;
       const originalPadding = gradeSheetRef.current.style.padding;
       const originalMargin = gradeSheetRef.current.style.margin;
-      
+
       gradeSheetRef.current.style.width = '700px';
       gradeSheetRef.current.style.maxWidth = '700px';
       gradeSheetRef.current.style.padding = '15px';
       gradeSheetRef.current.style.margin = '0';
-
       gradeSheetRef.current.classList.add('pdf-compact');
 
-      html2canvas(gradeSheetRef.current, { 
+      html2canvas(gradeSheetRef.current, {
         scale: 2,
         width: 700,
         height: undefined,
         useCORS: true,
-        allowTaint: true
-      }).then((canvas) => {
-        const imgData = canvas.toDataURL("image/png");
-        const pdf = new jsPDF("p", "mm", "a4");
-        
-        const imgWidth = 190;
-        const imgHeight = (canvas.height * imgWidth) / canvas.width;
-        
-        const maxHeight = 270;
-        
-        if (imgHeight <= maxHeight) {
-          const yOffset = (297 - imgHeight) / 2;
-          pdf.addImage(imgData, "PNG", 10, yOffset, imgWidth, imgHeight);
-        } else {
-          const scaleFactor = maxHeight / imgHeight;
-          const scaledWidth = imgWidth * scaleFactor;
-          const scaledHeight = maxHeight;
-          const xOffset = (210 - scaledWidth) / 2;
-          const yOffset = (297 - scaledHeight) / 2;
-          
-          pdf.addImage(imgData, "PNG", xOffset, yOffset, scaledWidth, scaledHeight);
-        }
-        
-        const filename = `grade_sheet_${data.studentInfo.name || 'student'}_${marksheetData?.publicationDate || 'result'}.pdf`.replace(/\s+/g, '_');
-        pdf.save(filename);
-        
-        gradeSheetRef.current.style.width = originalWidth;
-        gradeSheetRef.current.style.maxWidth = originalMaxWidth;
-        gradeSheetRef.current.style.padding = originalPadding;
-        gradeSheetRef.current.style.margin = originalMargin;
-        
-        gradeSheetRef.current.classList.remove('pdf-compact');
-        
-        setDownloading(false);
-      }).catch((error) => {
-        console.error('Error generating PDF:', error);
-        alert('Failed to generate PDF. Please try again.');
-        setDownloading(false);
-      });
+        allowTaint: true,
+      })
+        .then((canvas) => {
+          const imgData = canvas.toDataURL('image/png');
+          const pdf = new jsPDF('p', 'mm', 'a4');
+          const imgWidth = 190;
+          const imgHeight = (canvas.height * imgWidth) / canvas.width;
+          const maxHeight = 270;
+
+          if (imgHeight <= maxHeight) {
+            const yOffset = (297 - imgHeight) / 2;
+            pdf.addImage(imgData, 'PNG', 10, yOffset, imgWidth, imgHeight);
+          } else {
+            const scaleFactor = maxHeight / imgHeight;
+            const scaledWidth = imgWidth * scaleFactor;
+            const scaledHeight = maxHeight;
+            const xOffset = (210 - scaledWidth) / 2;
+            const yOffset = (297 - scaledHeight) / 2;
+            pdf.addImage(imgData, 'PNG', xOffset, yOffset, scaledWidth, scaledHeight);
+          }
+
+          const filename = `grade_sheet_${data.studentInfo.name || 'student'}_${marksheetData?.publicationDate || 'result'}.pdf`.replace(/\s+/g, '_');
+          pdf.save(filename);
+
+          gradeSheetRef.current.style.width = originalWidth;
+          gradeSheetRef.current.style.maxWidth = originalMaxWidth;
+          gradeSheetRef.current.style.padding = originalPadding;
+          gradeSheetRef.current.style.margin = originalMargin;
+          gradeSheetRef.current.classList.remove('pdf-compact');
+          setDownloading(false);
+        })
+        .catch((error) => {
+          console.error('Error generating PDF:', error);
+          alert('Failed to generate PDF. Please try again.');
+          setDownloading(false);
+        });
     }
   };
 
   if (!showGradeSheet) {
     return (
-      <div className="grade-sheet-container">
-        <div className="grade-sheet-header">
-          <button onClick={() => navigate('/dashboard')} className="btn-back">
-            ← Back to Dashboard
-          </button>
-          <h1>Grade Sheet</h1>
-        </div>
-
-        <div
-          style={{
-            marginTop: '20px',
-            padding: '18px',
-            background: '#fff',
-            borderRadius: '10px',
-            border: '1px solid #e5e7eb',
-            maxWidth: '720px',
-          }}
-        >
-          <h2 style={{ margin: 0, fontSize: '18px' }}>Select Year</h2>
-          <p style={{ marginTop: '8px', marginBottom: '14px', color: '#4b5563' }}>
-            Choose the admission batch/year to view your gradesheet.
-          </p>
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-            <button
-              className="download-pdf-btn"
-              onClick={() => setSelectedYear('2024')}
-              style={{ width: 'auto' }}
-            >
-              Admission Batch 2024
+      <div className="gs-picker-page">
+        <div className="gs-picker-shell">
+          <header className="gs-picker-top">
+            <button type="button" onClick={() => navigate('/dashboard')} className="gs-picker-back">
+              ← Back to dashboard
             </button>
-          </div>
-
-          <div style={{ marginTop: '16px' }}>
-            <h2 style={{ margin: 0, fontSize: '18px' }}>Select Semester</h2>
-            <p style={{ marginTop: '8px', marginBottom: '14px', color: '#4b5563' }}>
-              Choose which semester gradesheet you want to view.
+            <p className="gs-picker-kicker">Examination records</p>
+            <h1>Grade sheet</h1>
+            <p className="gs-picker-lead">
+              Choose the admission batch and semester to open the official result.
             </p>
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          </header>
+
+          <section className="gs-picker-card">
+            <div className="gs-picker-step">
+              <span className="gs-picker-step-no">1</span>
+              <div>
+                <h2>Admission batch</h2>
+                <p>Select the year you were admitted.</p>
+              </div>
+            </div>
+            <div className="gs-choice-grid">
               <button
-                className="download-pdf-btn"
-                onClick={() => setSelectedSem('1')}
-                style={{
-                  width: 'auto',
-                  background: selectedSem === '1' ? undefined : '#f3f4f6',
-                  color: selectedSem === '1' ? undefined : '#111827',
-                }}
+                type="button"
+                className={`gs-choice${selectedYear === '2024' ? ' is-active' : ''}`}
+                onClick={() => setSelectedYear('2024')}
               >
-                1st Sem
-              </button>
-              <button
-                className="download-pdf-btn"
-                onClick={() => setSelectedSem('2')}
-                style={{
-                  width: 'auto',
-                  background: selectedSem === '2' ? undefined : '#f3f4f6',
-                  color: selectedSem === '2' ? undefined : '#111827',
-                }}
-              >
-                2nd Sem
+                <strong>2024</strong>
+                <span>Admission batch</span>
               </button>
             </div>
-          </div>
 
-          <div style={{ marginTop: '18px', display: 'flex', gap: '12px', alignItems: 'center' }}>
-            <button
-              className="download-pdf-btn"
-              disabled={!selectedYear || !selectedSem}
-              onClick={() => setShowGradeSheet(true)}
-              style={{ width: 'auto' }}
-            >
-              View Grade Sheet
-            </button>
-            {!selectedYear ? (
-              <span style={{ color: '#6b7280' }}>Select a year to continue.</span>
-            ) : null}
-          </div>
+            <div className="gs-picker-step">
+              <span className="gs-picker-step-no">2</span>
+              <div>
+                <h2>Semester</h2>
+                <p>Open the grade sheet for one examination.</p>
+              </div>
+            </div>
+            <div className="gs-choice-grid gs-choice-grid--sem">
+              {SEMESTER_CHOICES.map((sem) => (
+                <button
+                  key={sem.value}
+                  type="button"
+                  className={`gs-choice${selectedSem === sem.value ? ' is-active' : ''}`}
+                  onClick={() => setSelectedSem(sem.value)}
+                >
+                  <strong>{sem.label}</strong>
+                  <span>{sem.hint}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="gs-picker-actions">
+              <button
+                type="button"
+                className="gs-picker-cta"
+                disabled={!selectedYear || !selectedSem}
+                onClick={() => setShowGradeSheet(true)}
+              >
+                View grade sheet
+              </button>
+              {!selectedYear ? (
+                <span className="gs-picker-hint">Select an admission batch to continue.</span>
+              ) : (
+                <span className="gs-picker-hint">
+                  {SEMESTER_CHOICES.find((s) => s.value === selectedSem)?.label} · Batch {selectedYear}
+                </span>
+              )}
+            </div>
+          </section>
         </div>
       </div>
     );
   }
+
 
   return (
     <div className="grade-sheet-container">
@@ -581,9 +599,10 @@ export default function GradeSheet({ user }) {
         >
           <option value="1">1st Sem</option>
           <option value="2">2nd Sem</option>
+          <option value="3">3rd Sem</option>
         </select>
-        <button 
-          onClick={generatePDF} 
+        <button
+          onClick={generatePDF}
           className="download-pdf-btn"
           disabled={downloading || loading}
         >
@@ -610,22 +629,22 @@ export default function GradeSheet({ user }) {
       ) : null}
 
       <div className="grade-sheet-document" ref={gradeSheetRef}>
-        {/* Document Title */}
         <div className="document-header">
           <img src="/college.png" alt="College Logo" className="college-logo" />
           <div className="document-header-text">
             <CollegeNameHeading as="h1" className="exam-title" />
             <h2 className="document-type">{isPGUser ? 'MARK SHEET CUM GRADE SHEET' : 'GRADE SHEET'}</h2>
             <p className="document-subtitle">
-              {selectedSem === '2'
-                ? `SECOND-SEMESTER EXAMINATION(ADMISSION-BATCH${selectedYear})`
-                : `FIRST-SEMESTER(ADMISSION-BATCH${selectedYear})`}
+              {selectedSem === '3'
+                ? `THIRD-SEMESTER EXAMINATION(ADMISSION-BATCH${selectedYear})`
+                : selectedSem === '2'
+                  ? `SECOND-SEMESTER EXAMINATION(ADMISSION-BATCH${selectedYear})`
+                  : `FIRST-SEMESTER(ADMISSION-BATCH${selectedYear})`}
             </p>
           </div>
           <div className="document-header-spacer" aria-hidden="true"></div>
         </div>
 
-        {/* Student Information Block */}
         <div className="student-info-block">
           <div className="info-left-column">
             <div className="info-row">
@@ -649,7 +668,7 @@ export default function GradeSheet({ user }) {
               <span className="value">{data.studentInfo.college}</span>
             </div>
           </div>
-          
+
           <div className="info-right-column">
             <div className="info-row">
               <span className="label">Exam Roll No.</span>
@@ -669,179 +688,159 @@ export default function GradeSheet({ user }) {
           </div>
         </div>
 
-        {/* Grade Details Table */}
         <div className="grade-table-container">
           {(() => {
-            // UG should show grade-only table; PG shows marks+grade table
             const isPGLayout = isPGUser;
             const tableClass = `grade-table${isPGLayout ? ' pg-marksheet-table' : ''}`;
             return (
-          <table className={tableClass}>
-            <thead>
-              {isPGLayout ? (
-                <>
-                  <tr>
-                    <th rowSpan={2}>SUBJECT</th>
-                    <th rowSpan={2}>COURSE</th>
-                    <th colSpan={2}>MID SEM</th>
-                    <th colSpan={2}>END SEM</th>
-                    <th colSpan={2}>TOTAL</th>
-                    <th rowSpan={2}>CREDIT</th>
-                    <th rowSpan={2}>GRADE</th>
-                    <th rowSpan={2}>GP</th>
-                    <th rowSpan={2}>CP</th>
-                  </tr>
-                  <tr>
-                    <th>FM</th>
-                    <th>MS</th>
-                    <th>FM</th>
-                    <th>MS</th>
-                    <th>FM</th>
-                    <th>MS</th>
-                  </tr>
-                </>
-              ) : (
-                <tr>
-                  <th>SUBJECT</th>
-                  <th>COURSE</th>
-                  <th>CREDIT</th>
-                  <th>GRADE</th>
-                  <th>GRADE POINT</th>
-                  <th>CREDIT POINT</th>
-                </tr>
-              )}
-            </thead>
-            <tbody>
-              {marksheetData ? (
-                // Use API data if available
-                <>
-                  {(() => {
-                    let majorCount = 0;
-                    return marksheetData.courses.map((course, index) => {
-                    const courseType = course.courseType || '';
-                    const normalizedType = courseType.toLowerCase();
-                    let displayCourseType = courseType.toUpperCase();
+              <table className={tableClass}>
+                <thead>
+                  {isPGLayout ? (
+                    <>
+                      <tr>
+                        <th rowSpan={2}>SUBJECT</th>
+                        <th rowSpan={2}>COURSE</th>
+                        <th colSpan={2}>MID SEM</th>
+                        <th colSpan={2}>END SEM</th>
+                        <th colSpan={2}>TOTAL</th>
+                        <th rowSpan={2}>CREDIT</th>
+                        <th rowSpan={2}>GRADE</th>
+                        <th rowSpan={2}>GP</th>
+                        <th rowSpan={2}>CP</th>
+                      </tr>
+                      <tr>
+                        <th>FM</th>
+                        <th>MS</th>
+                        <th>FM</th>
+                        <th>MS</th>
+                        <th>FM</th>
+                        <th>MS</th>
+                      </tr>
+                    </>
+                  ) : (
+                    <tr>
+                      <th>SUBJECT</th>
+                      <th>COURSE</th>
+                      <th>CREDIT</th>
+                      <th>GRADE</th>
+                      <th>GRADE POINT</th>
+                      <th>CREDIT POINT</th>
+                    </tr>
+                  )}
+                </thead>
+                <tbody>
+                  {marksheetData ? (
+                    <>
+                      {(() => {
+                        let majorCount = 0;
+                        return marksheetData.courses.map((course, index) => {
+                          const courseType = course.courseType || '';
+                          if (String(courseType).toLowerCase().startsWith('major')) {
+                            majorCount += 1;
+                          }
+                          const displayCourseType = isPGUser
+                            ? String(courseType).toUpperCase()
+                            : labelUgPaper(courseType, selectedSem, majorCount);
 
-                    if (normalizedType.startsWith('major')) {
-                        majorCount += 1;
-                        // UG 2nd sem should show Major-3 and Major-4
-                        if (selectedSem === '2') {
-                          displayCourseType = `CORE-1 MAJOR-${majorCount + 2}`;
-                        } else {
-                          displayCourseType = `CORE-1 MAJOR-${majorCount}`;
-                        }
-                    } else if (normalizedType.startsWith('minor')) {
-                        // UG 2nd sem should show Minor-2
-                        displayCourseType = selectedSem === '2' ? 'CORE-2 MINOR-2' : 'CORE-2 MINOR-1';
-                    } else if (normalizedType.includes('mdc')) {
-                        displayCourseType = selectedSem === '2' ? 'MDC-2' : 'MDC-1';
-                    } else if (normalizedType.includes('aec')) {
-                        displayCourseType = selectedSem === '2' ? 'AEC-2' : 'AEC-1';
-                    } else if (normalizedType.includes('vac')) {
-                        displayCourseType = 'VAC-1';
-                    }
-
-                    return (
-                      <tr key={index}>
-                        <td>{course.subjectName}</td>
-                        <td>{displayCourseType}</td>
+                          return (
+                            <tr key={index}>
+                              <td>{course.subjectName}</td>
+                              <td>{displayCourseType}</td>
+                              {isPGLayout ? (
+                                <>
+                                  {(() => {
+                                    const semIndex = Math.max(0, Number(selectedSem) - 1);
+                                    const m = getPGRowMarks(course, deptKeyForPgTable, { semesterIndex: semIndex });
+                                    return (
+                                      <>
+                                        <td>{m.midFm}</td>
+                                        <td>{m.midMs}</td>
+                                        <td>{m.endFm}</td>
+                                        <td>{m.endMs}</td>
+                                        <td>{m.totalFm}</td>
+                                        <td><strong>{m.totalMs}</strong></td>
+                                      </>
+                                    );
+                                  })()}
+                                  <td>{course.credit}</td>
+                                  <td>{course.grade}</td>
+                                  <td>{course.gradePoint}</td>
+                                  <td>{course.creditPoint}</td>
+                                </>
+                              ) : (
+                                <>
+                                  <td>{course.credit}</td>
+                                  <td>{course.grade}</td>
+                                  <td>{course.gradePoint}</td>
+                                  <td>{course.creditPoint}</td>
+                                </>
+                              )}
+                            </tr>
+                          );
+                        });
+                      })()}
+                      <tr className="total-row">
+                        <td colSpan={2} className="total-label">TOTAL</td>
                         {isPGLayout ? (
                           <>
                             {(() => {
                               const semIndex = Math.max(0, Number(selectedSem) - 1);
-                              const m = getPGRowMarks(course, deptKeyForPgTable, { semesterIndex: semIndex });
+                              const t = sumPGTotals(marksheetData?.courses || [], deptKeyForPgTable, {
+                                semesterIndex: semIndex,
+                              });
                               return (
                                 <>
-                                  <td>{m.midFm}</td>
-                                  <td>{m.midMs}</td>
-                                  <td>{m.endFm}</td>
-                                  <td>{m.endMs}</td>
-                                  <td>{m.totalFm}</td>
-                                  <td><strong>{m.totalMs}</strong></td>
+                                  <td><strong>{t.midFm}</strong></td>
+                                  <td><strong>{t.midMs}</strong></td>
+                                  <td><strong>{t.endFm}</strong></td>
+                                  <td><strong>{t.endMs}</strong></td>
+                                  <td><strong>{t.totalFm}</strong></td>
+                                  <td><strong>{t.totalMs}</strong></td>
                                 </>
                               );
                             })()}
-                            <td>{course.credit}</td>
-                            <td>{course.grade}</td>
-                            <td>{course.gradePoint}</td>
-                            <td>{course.creditPoint}</td>
+                            <td>{marksheetData.totalCredits}</td>
+                            <td></td>
+                            <td>{marksheetData.totalGradePoints ?? ''}</td>
+                            <td>{marksheetData.totalCreditPoints}</td>
                           </>
                         ) : (
                           <>
-                            <td>{course.credit}</td>
-                            <td>{course.grade}</td>
-                            <td>{course.gradePoint}</td>
-                            <td>{course.creditPoint}</td>
+                            <td>{marksheetData.totalCredits}</td>
+                            <td></td>
+                            <td>{marksheetData.totalGradePoints ?? ''}</td>
+                            <td>{marksheetData.totalCreditPoints}</td>
                           </>
                         )}
                       </tr>
-                    );
-                  });
-                  })()}
-                  <tr className="total-row">
-                    <td colSpan={2} className="total-label">TOTAL</td>
-                    {isPGLayout ? (
-                      <>
-                        {(() => {
-                          const semIndex = Math.max(0, Number(selectedSem) - 1);
-                          const t = sumPGTotals(marksheetData?.courses || [], deptKeyForPgTable, {
-                            semesterIndex: semIndex,
-                          });
-                          return (
-                            <>
-                              <td><strong>{t.midFm}</strong></td>
-                              <td><strong>{t.midMs}</strong></td>
-                              <td><strong>{t.endFm}</strong></td>
-                              <td><strong>{t.endMs}</strong></td>
-                              <td><strong>{t.totalFm}</strong></td>
-                              <td><strong>{t.totalMs}</strong></td>
-                            </>
-                          );
-                        })()}
-                        <td>{marksheetData.totalCredits}</td>
+                    </>
+                  ) : (
+                    <>
+                      {data.gradeDetails.map((subject, index) => (
+                        <tr key={index}>
+                          <td>{subject.courseTitle || subject.course}</td>
+                          <td>{subject.course}</td>
+                          <td>{subject.credit}</td>
+                          <td>{subject.grade}</td>
+                          <td>{subject.gradePoint}</td>
+                          <td>{subject.creditPoint}</td>
+                        </tr>
+                      ))}
+                      <tr className="total-row">
+                        <td colSpan={2} className="total-label">TOTAL</td>
+                        <td>{data.totals.totalCredits}</td>
                         <td></td>
-                        <td>{marksheetData.totalGradePoints ?? ''}</td>
-                        <td>{marksheetData.totalCreditPoints}</td>
-                      </>
-                    ) : (
-                      <>
-                        <td>{marksheetData.totalCredits}</td>
                         <td></td>
-                        <td>{marksheetData.totalGradePoints ?? ''}</td>
-                        <td>{marksheetData.totalCreditPoints}</td>
-                      </>
-                    )}
-                  </tr>
-                </>
-              ) : (
-                // Fallback to JSON data
-                <>
-                  {data.gradeDetails.map((subject, index) => (
-                    <tr key={index}>
-                      <td>{subject.courseTitle || subject.course}</td>
-                      <td>{subject.course}</td>
-                      <td>{subject.credit}</td>
-                      <td>{subject.grade}</td>
-                      <td>{subject.gradePoint}</td>
-                      <td>{subject.creditPoint}</td>
-                    </tr>
-                  ))}
-                  <tr className="total-row">
-                    <td colSpan={2} className="total-label">TOTAL</td>
-                    <td>{data.totals.totalCredits}</td>
-                    <td></td>
-                    <td></td>
-                    <td>{data.totals.totalCreditPoints}</td>
-                  </tr>
-                </>
-              )}
-            </tbody>
-          </table>
+                        <td>{data.totals.totalCreditPoints}</td>
+                      </tr>
+                    </>
+                  )}
+                </tbody>
+              </table>
             );
           })()}
         </div>
 
-        {/* Result and SGPA Section */}
         <div className="result-sgpa-section">
           <div className="result-left">
             <span className="label">Result</span>
@@ -855,7 +854,6 @@ export default function GradeSheet({ user }) {
           </div>
         </div>
 
-        {/* Grading System Table */}
         <div className="grading-system-container">
           <table className="grading-system-table">
             <thead>
@@ -880,7 +878,6 @@ export default function GradeSheet({ user }) {
           </table>
         </div>
 
-        {/* Footer */}
         <div className="grade-sheet-footer">
           <div className="controller-signature">
             <img src="/EXAMINER.jpg" alt="Controller of Examinations Signature" className="signature-image" />
@@ -899,4 +896,3 @@ export default function GradeSheet({ user }) {
     </div>
   );
 }
-

@@ -306,6 +306,58 @@ export function getPGRowMarks(course, deptKey, options = {}) {
   };
 }
 
+/** UG NEP theory papers are typically 20 mid + 80 end; VAC / no-internal papers are 100. */
+export function getUGRowMarks(course) {
+  const mid = toNum(course?.midsem ?? course?.internal);
+  const end = toNum(course?.endsem ?? course?.theory);
+  const tot = toNum(course?.marks);
+  const type = String(course?.courseType || '').toLowerCase();
+  const hundredOnly = type.includes('vac') || mid == null;
+
+  if (hundredOnly) {
+    const endMs = end ?? tot ?? '';
+    return {
+      midFm: '',
+      midMs: '',
+      endFm: 100,
+      endMs: endMs,
+      totalFm: 100,
+      totalMs: tot ?? endMs,
+    };
+  }
+
+  return {
+    midFm: 20,
+    midMs: mid,
+    endFm: 80,
+    endMs: end ?? '',
+    totalFm: 100,
+    totalMs: tot ?? '',
+  };
+}
+
+export function formatSplitFullMark(marks) {
+  if (marks.midFm === '' || marks.midFm == null) {
+    return marks.endFm != null && marks.endFm !== '' ? String(marks.endFm) : '';
+  }
+  return `${marks.midFm}+${marks.endFm}`;
+}
+
+export function sumUGTotals(courses) {
+  const totals = { midFm: 0, midMs: 0, endFm: 0, endMs: 0, totalFm: 0, totalMs: 0 };
+  if (!Array.isArray(courses)) return totals;
+  for (const c of courses) {
+    const m = getUGRowMarks(c);
+    totals.midFm += toNum(m.midFm) ?? 0;
+    totals.midMs += toNum(m.midMs) ?? 0;
+    totals.endFm += toNum(m.endFm) ?? 0;
+    totals.endMs += toNum(m.endMs) ?? 0;
+    totals.totalFm += toNum(m.totalFm) ?? 0;
+    totals.totalMs += toNum(m.totalMs) ?? 0;
+  }
+  return totals;
+}
+
 export function sumPGTotals(courses, deptKey, options = {}) {
   const totals = { midFm: 0, midMs: 0, endFm: 0, endMs: 0, totalFm: 0, totalMs: 0 };
   if (!Array.isArray(courses)) return totals;

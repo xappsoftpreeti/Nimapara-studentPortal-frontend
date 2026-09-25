@@ -69,7 +69,9 @@ export default function Profile({ user }) {
       
       if (response.data) {
         setProfileData(response.data);
-        setProfileImage(response.data.profileImage || null);
+        const storageKey = `profileImage_${user?.autonomousRollNo || response.data.autonomousRollNo}`;
+        const localImage = localStorage.getItem(storageKey);
+        setProfileImage(localImage || null);
       }
     } catch (err) {
       console.error('Error fetching profile:', err);
@@ -121,58 +123,14 @@ export default function Profile({ user }) {
         const base64Image = e.target.result;
 
         try {
-          const token = localStorage.getItem('token');
-          
-          if (!token) {
-            setError('You are not logged in. Please login again.');
-            setUploading(false);
-            return;
-          }
-          
-          const uploadUrl = `${config.API_BASE_URL}${config.API_ENDPOINTS.UPLOAD_IMAGE}`;
-          console.log('Uploading image to:', uploadUrl);
-          console.log('Token exists:', !!token);
-          console.log('Token length:', token?.length);
-          console.log('Image data length:', base64Image.length);
-          
-          const response = await axios.post(
-            uploadUrl,
-            { image: base64Image },
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
-                'Content-Type': 'application/json'
-              }
-            }
-          );
-
-          console.log('Upload response:', response.data);
-          if (response.data) {
-            setProfileImage(base64Image);
-            setSuccess('Profile image uploaded successfully!');
-            setTimeout(() => setSuccess(''), 3000);
-          }
+          const storageKey = `profileImage_${user?.autonomousRollNo}`;
+          localStorage.setItem(storageKey, base64Image);
+          setProfileImage(base64Image);
+          setSuccess('Profile photo saved on this device. It is not stored in the database.');
+          setTimeout(() => setSuccess(''), 3000);
         } catch (err) {
-          console.error('Error uploading image:', err);
-          console.error('Error response:', err.response);
-          console.error('Error status:', err.response?.status);
-          console.error('Error data:', err.response?.data);
-          
-          if (err.response?.status === 401) {
-            const errorMsg = err.response?.data?.message || 'Authentication failed';
-            if (errorMsg.includes('expired') || errorMsg.includes('Token')) {
-              setError('Your session has expired. Please login again.');
-              setTimeout(() => {
-                clearAuth();
-              }, 2000);
-            } else {
-              setError(errorMsg);
-            }
-          } else if (err.response?.status === 404) {
-            setError('Upload endpoint not found. Please contact support or restart the server.');
-          } else {
-            setError(err.response?.data?.message || err.message || 'Failed to upload image. Please try again.');
-          }
+          console.error('Error saving image:', err);
+          setError('Failed to save image on this device. Please try again.');
         } finally {
           setUploading(false);
         }
@@ -201,18 +159,10 @@ export default function Profile({ user }) {
       setError('');
       setSuccess('');
 
-      const token = localStorage.getItem('token');
-      await axios.delete(
-        `${config.API_BASE_URL}${config.API_ENDPOINTS.DELETE_IMAGE}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        }
-      );
-
+      const storageKey = `profileImage_${user?.autonomousRollNo}`;
+      localStorage.removeItem(storageKey);
       setProfileImage(null);
-      setSuccess('Profile image removed successfully!');
+      setSuccess('Profile image removed from this device.');
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
       console.error('Error deleting image:', err);
