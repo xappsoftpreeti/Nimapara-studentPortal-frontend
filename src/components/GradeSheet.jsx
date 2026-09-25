@@ -641,6 +641,7 @@ export default function GradeSheet({ user }) {
                   ? `SECOND-SEMESTER EXAMINATION(ADMISSION-BATCH${selectedYear})`
                   : `FIRST-SEMESTER(ADMISSION-BATCH${selectedYear})`}
             </p>
+            <p className="document-subtitle examination-year">EXAMINATION YEAR 2026</p>
           </div>
           <div className="document-header-spacer" aria-hidden="true"></div>
         </div>
