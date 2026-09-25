@@ -358,7 +358,11 @@ export default function GradeSheet({ user }) {
               examRollNo: apiStudentInfo.rollNo || prevData.studentInfo.examRollNo,
               registrationNo: apiStudentInfo.autonomousRollNo || prevData.studentInfo.registrationNo,
               mediumOfExam: detectedLanguage || prevData.studentInfo.mediumOfExam,
-              course: majorSubject ? `CORE-1: ${String(majorSubject).toUpperCase()}` : prevData.studentInfo.course,
+              course: isBbaRow
+                ? 'BBA'
+                : majorSubject
+                  ? `CORE-1: ${String(majorSubject).toUpperCase()}`
+                  : prevData.studentInfo.course,
               coreTwo: minorSubject ? `CORE-2: ${String(minorSubject).toUpperCase()}` : prevData.studentInfo.coreTwo,
             }
           }));
@@ -399,11 +403,16 @@ export default function GradeSheet({ user }) {
 
         const deptFromApi = formatCourseName(apiStudentInfo?.department);
         const looksPG = isPGUser;
+        const looksBBA = String(apiStudentInfo?.department || user?.Department || user?.department || '')
+          .toUpperCase()
+          .includes('BBA');
         const language = looksPG ? detectMediumOfExam(deptFromApi || apiStudentInfo?.department) : 'ENGLISH';
         const courseInfo = looksPG
           ? deptFromApi
             ? buildPGCourseLine(deptFromApi, user?.course)
             : data.studentInfo.course
+          : looksBBA
+            ? 'BBA'
           : (() => {
               const majorCourse = (semMarksheet.courses || []).find((course) =>
                 String(course.courseType || '').toLowerCase().startsWith('major')
