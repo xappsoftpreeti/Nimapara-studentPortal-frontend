@@ -712,7 +712,7 @@ const AdmitCard = ({ user }) => {
               {!profileImage && (
                 <div className="requirement-item">
                   <div className="requirement-header">
-                    <h4>ðŸ“· Upload Profile Photo <span className="mandatory-badge">Required</span></h4>
+                    <h4>Upload Profile Photo <span className="mandatory-badge">Required</span></h4>
                   </div>
                   <div className="requirement-content">
                     <input
@@ -743,7 +743,7 @@ const AdmitCard = ({ user }) => {
               {!hasAbcId && (
                 <div className="requirement-item">
                   <div className="requirement-header">
-                    <h4>ðŸªª ABC ID Registration <span className="mandatory-badge">Required</span></h4>
+                    <h4>ABC ID Registration <span className="mandatory-badge">Required</span></h4>
                   </div>
                   <div className="requirement-content">
                     <form onSubmit={handleAbcIdSubmit} className="abc-id-form">
@@ -788,7 +788,7 @@ const AdmitCard = ({ user }) => {
             <div className="download-section">
               {!canDownload() && (
                 <div className="download-restriction-message">
-                  <p>âš ï¸ {getDownloadRestrictionMessage()}</p>
+                  <p>{getDownloadRestrictionMessage()}</p>
                   <p className="restriction-hint">
                     Complete the requirements above to download your admit card
                   </p>
