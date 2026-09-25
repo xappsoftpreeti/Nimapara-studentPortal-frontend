@@ -48,7 +48,7 @@ export default function GradeSheet({ user }) {
   const navigate = useNavigate();
   const [data, setData] = useState(gradeSheetData);
   const [marksheetData, setMarksheetData] = useState(null);
-  const [selectedYear, setSelectedYear] = useState('');
+  const [selectedYear, setSelectedYear] = useState('2024');
   const [selectedSem, setSelectedSem] = useState('1');
   const [showGradeSheet, setShowGradeSheet] = useState(false);
   const [loading, setLoading] = useState(true);
