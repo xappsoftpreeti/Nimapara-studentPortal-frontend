@@ -882,6 +882,10 @@
   color: #3730a3;
 }
 
+.gs-choice[role='status'] {
+  cursor: default;
+}
+
 .gs-picker-actions {
   display: flex;
   flex-wrap: wrap;

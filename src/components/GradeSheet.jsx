@@ -9,20 +9,63 @@ import './GradeSheet.css';
 import { normalizeDeptKey, getPGRowMarks, sumPGTotals, toNum, resolveSemesterClassification } from '../utils/marksheetUtils';
 import { buildPGCourseLine } from '../utils/finalGradeSheetMapper';
 
-const SEMESTER_CHOICES = [
-  { value: '1', label: '1st Semester', hint: 'Major CP-1 & CP-2' },
-  { value: '2', label: '2nd Semester', hint: 'Major CP-3 & CP-4' },
-  { value: '3', label: '3rd Semester', hint: 'Major CP-5, CP-6 & CP-7' },
-];
+const SEMESTER_CHOICES_BY_YEAR = {
+  '2024': [
+    { value: '1', label: '1st Semester', hint: 'Major CP-1 & CP-2' },
+    { value: '2', label: '2nd Semester', hint: 'Major CP-3 & CP-4' },
+    { value: '3', label: '3rd Semester', hint: 'Major CP-5, CP-6 & CP-7' },
+  ],
+  '2025': [{ value: '1', label: '1st Semester', hint: 'Major CP-1 & CP-2' }],
+};
+
+const resolveAdmissionYear = (user) => {
+  const fromField = String(user?.batch || '').trim();
+  if (/^20\d{2}$/.test(fromField)) return fromField;
+  const type = String(user?.studentType || '').toUpperCase();
+  if (type.includes('2025')) return '2025';
+  if (type.includes('2024')) return '2024';
+  const roll = String(user?.autonomousRollNo || user?.['Autonomous Roll No'] || '').toUpperCase();
+  const fromRoll = roll.match(/NAC(?:BBA)?(\d{2})/);
+  if (fromRoll) return `20${fromRoll[1]}`;
+  return '2024';
+};
+
+const isMajorCourseType = (courseType) => {
+  const normalizedType = String(courseType || '').toLowerCase();
+  return normalizedType.includes('major') && !normalizedType.includes('minor');
+};
+
+const majorNumberFromType = (courseType) => {
+  const match = String(courseType || '').match(/major(?:-cp)?[- ]?(\d+)/i);
+  return match ? Number(match[1]) : null;
+};
+
+const sortUgCourses = (courses = []) => {
+  const paperOrder = (course) => {
+    const type = String(course?.courseType || '').toLowerCase();
+    if (isMajorCourseType(course?.courseType)) {
+      return 10 + (majorNumberFromType(course?.courseType) || 99);
+    }
+    if (type.includes('minor')) return 20;
+    if (type.includes('mdc') || type.includes('multi disciplinary') || type.includes('multidisciplinary')) return 30;
+    if (type.includes('aec')) return 40;
+    if (type.includes('vac')) return 50;
+    if (type.includes('sec')) return 60;
+    return 70;
+  };
+  return [...courses].sort((a, b) => paperOrder(a) - paperOrder(b));
+};
 
 const labelUgPaper = (courseType, selectedSem, majorCount) => {
   const normalizedType = String(courseType || '').toLowerCase();
-  if (normalizedType.startsWith('major')) {
+  if (isMajorCourseType(courseType)) {
+    const fromType = majorNumberFromType(courseType);
+    if (fromType) return `CORE-1 MAJOR-${fromType}`;
     if (selectedSem === '3') return `CORE-1 MAJOR-${majorCount + 4}`;
     if (selectedSem === '2') return `CORE-1 MAJOR-${majorCount + 2}`;
     return `CORE-1 MAJOR-${majorCount}`;
   }
-  if (normalizedType.startsWith('minor')) {
+  if (normalizedType.includes('minor')) {
     return selectedSem === '3' ? 'CORE-2 MINOR-3' : selectedSem === '2' ? 'CORE-2 MINOR-2' : 'CORE-2 MINOR-1';
   }
   if (
@@ -46,15 +89,25 @@ const labelUgPaper = (courseType, selectedSem, majorCount) => {
 
 export default function GradeSheet({ user }) {
   const navigate = useNavigate();
+  const admissionYear = resolveAdmissionYear(user);
+  const semesterChoices = SEMESTER_CHOICES_BY_YEAR[admissionYear] || SEMESTER_CHOICES_BY_YEAR['2024'];
   const [data, setData] = useState(gradeSheetData);
   const [marksheetData, setMarksheetData] = useState(null);
-  const [selectedYear, setSelectedYear] = useState('2024');
+  const [selectedYear, setSelectedYear] = useState(admissionYear);
   const [selectedSem, setSelectedSem] = useState('1');
   const [showGradeSheet, setShowGradeSheet] = useState(false);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const gradeSheetRef = useRef(null);
+
+  useEffect(() => {
+    setSelectedYear(admissionYear);
+    const allowed = (SEMESTER_CHOICES_BY_YEAR[admissionYear] || SEMESTER_CHOICES_BY_YEAR['2024']).map(
+      (s) => s.value
+    );
+    setSelectedSem((current) => (allowed.includes(current) ? current : '1'));
+  }, [admissionYear]);
 
   useEffect(() => {
     if (!showGradeSheet || !selectedYear || !selectedSem) {
@@ -270,6 +323,14 @@ export default function GradeSheet({ user }) {
       .join(' ');
   };
 
+  const formatDepartmentCourse = (v) => {
+    const s = String(v || '')
+      .trim()
+      .replace(/\./g, ' ')
+      .replace(/\s+/g, ' ');
+    return s ? s.toUpperCase() : '';
+  };
+
   const detectMediumOfExam = (departmentOrCourse) => {
     const raw = departmentOrCourse == null ? '' : String(departmentOrCourse).trim();
     const u = raw.toUpperCase();
@@ -336,9 +397,6 @@ export default function GradeSheet({ user }) {
           const isBbaRow =
             String(secondSemRow?.Department || '').toUpperCase().includes('BBA') ||
             secondSemRow?.['CC-201'] != null;
-          const majorSubject = isBbaRow
-            ? secondSemRow?.['CC-201']?.Subject || ''
-            : secondSemRow?.['Major-3']?.Subject || secondSemRow?.['Major-4']?.Subject || '';
           const minorSubject = isBbaRow
             ? secondSemRow?.['CC-202']?.Subject || ''
             : secondSemRow?.['MINOR-2(20)']?.Subject || '';
@@ -358,11 +416,9 @@ export default function GradeSheet({ user }) {
               examRollNo: apiStudentInfo.rollNo || prevData.studentInfo.examRollNo,
               registrationNo: apiStudentInfo.autonomousRollNo || prevData.studentInfo.registrationNo,
               mediumOfExam: detectedLanguage || prevData.studentInfo.mediumOfExam,
-              course: isBbaRow
-                ? 'BBA'
-                : majorSubject
-                  ? `CORE-1: ${String(majorSubject).toUpperCase()}`
-                  : prevData.studentInfo.course,
+              course:
+                formatDepartmentCourse(apiStudentInfo.department) ||
+                (isBbaRow ? 'BBA' : prevData.studentInfo.course),
               coreTwo: minorSubject ? `CORE-2: ${String(minorSubject).toUpperCase()}` : prevData.studentInfo.coreTwo,
             }
           }));
@@ -388,39 +444,34 @@ export default function GradeSheet({ user }) {
           publicationDate = `${day}/${month}/${year}`;
         }
 
+        const ugCourses = isPGUser
+          ? semMarksheet.courses || []
+          : sortUgCourses(semMarksheet.courses || []);
+
         setMarksheetData({
-          courses: semMarksheet.courses || [],
+          courses: ugCourses,
           totalCredits: semMarksheet.totalCredits || 0,
           totalCreditPoints: semMarksheet.totalCreditPoints || 0,
-          totalGradePoints: Number(((semMarksheet.courses || []).reduce((sum, c) => sum + (typeof c?.gradePoint === 'number' ? c.gradePoint : 0), 0)).toFixed(2)),
+          totalGradePoints: Number(((ugCourses || []).reduce((sum, c) => sum + (typeof c?.gradePoint === 'number' ? c.gradePoint : 0), 0)).toFixed(2)),
           sgpa: semMarksheet.sgpa || 0,
           publicationDate,
           classification: resolveSemesterClassification(
             semMarksheet.classification,
-            semMarksheet.courses || []
+            ugCourses
           )
         });
 
         const deptFromApi = formatCourseName(apiStudentInfo?.department);
         const looksPG = isPGUser;
-        const looksBBA = String(apiStudentInfo?.department || user?.Department || user?.department || '')
-          .toUpperCase()
-          .includes('BBA');
         const language = looksPG ? detectMediumOfExam(deptFromApi || apiStudentInfo?.department) : 'ENGLISH';
+        const departmentCourse = formatDepartmentCourse(
+          apiStudentInfo?.department || user?.Department || user?.department
+        );
         const courseInfo = looksPG
           ? deptFromApi
             ? buildPGCourseLine(deptFromApi, user?.course)
             : data.studentInfo.course
-          : looksBBA
-            ? 'BBA'
-          : (() => {
-              const majorCourse = (semMarksheet.courses || []).find((course) =>
-                String(course.courseType || '').toLowerCase().startsWith('major')
-              );
-              return majorCourse?.subjectName
-                ? `CORE-1: ${String(majorCourse.subjectName).toUpperCase()}`
-                : data.studentInfo.course;
-            })();
+          : departmentCourse || data.studentInfo.course;
 
         let coreTwoInfo = data.studentInfo.coreTwo;
         if (!looksPG) {
@@ -534,18 +585,14 @@ export default function GradeSheet({ user }) {
               <span className="gs-picker-step-no">1</span>
               <div>
                 <h2>Admission batch</h2>
-                <p>Select the year you were admitted.</p>
+                <p>Your admission year from login.</p>
               </div>
             </div>
             <div className="gs-choice-grid">
-              <button
-                type="button"
-                className={`gs-choice${selectedYear === '2024' ? ' is-active' : ''}`}
-                onClick={() => setSelectedYear('2024')}
-              >
-                <strong>2024</strong>
+              <div className="gs-choice is-active" role="status">
+                <strong>{selectedYear}</strong>
                 <span>Admission batch</span>
-              </button>
+              </div>
             </div>
 
             <div className="gs-picker-step">
@@ -556,7 +603,7 @@ export default function GradeSheet({ user }) {
               </div>
             </div>
             <div className="gs-choice-grid gs-choice-grid--sem">
-              {SEMESTER_CHOICES.map((sem) => (
+              {semesterChoices.map((sem) => (
                 <button
                   key={sem.value}
                   type="button"
@@ -582,7 +629,7 @@ export default function GradeSheet({ user }) {
                 <span className="gs-picker-hint">Select an admission batch to continue.</span>
               ) : (
                 <span className="gs-picker-hint">
-                  {SEMESTER_CHOICES.find((s) => s.value === selectedSem)?.label} · Batch {selectedYear}
+                  {semesterChoices.find((s) => s.value === selectedSem)?.label} · Batch {selectedYear}
                 </span>
               )}
             </div>
@@ -743,9 +790,12 @@ export default function GradeSheet({ user }) {
                     <>
                       {(() => {
                         let majorCount = 0;
-                        return marksheetData.courses.map((course, index) => {
+                        const tableCourses = isPGUser
+                          ? marksheetData.courses
+                          : sortUgCourses(marksheetData.courses);
+                        return tableCourses.map((course, index) => {
                           const courseType = course.courseType || '';
-                          if (String(courseType).toLowerCase().startsWith('major')) {
+                          if (isMajorCourseType(courseType)) {
                             majorCount += 1;
                           }
                           const displayCourseType = isPGUser
