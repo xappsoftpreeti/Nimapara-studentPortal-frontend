@@ -3,26 +3,11 @@ import axios from 'axios';
 import config from '../config';
 import "./Login.css";
 
-// Portal opens for login at 5:00 PM IST on 14 Oct 2026 (PG 2025 Sem 1 result publication)
-const LOGIN_OPEN_AT = new Date('2026-10-14T17:00:00+05:30').getTime();
-
 export default function Login({ onLogin }) {
-  const [loginOpen, setLoginOpen] = useState(() => Date.now() >= LOGIN_OPEN_AT);
   const [rollNumber, setRollNumber] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  useEffect(() => {
-    if (loginOpen) return undefined;
-    const timer = setInterval(() => {
-      if (Date.now() >= LOGIN_OPEN_AT) {
-        setLoginOpen(true);
-        clearInterval(timer);
-      }
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [loginOpen]);
 
   useEffect(() => {
     const redirectMessage = sessionStorage.getItem('auth_redirect_message');
@@ -65,11 +50,6 @@ export default function Login({ onLogin }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (Date.now() < LOGIN_OPEN_AT) {
-      setLoginOpen(false);
-      return;
-    }
 
     setLoading(true);
     setError('');
@@ -166,17 +146,6 @@ export default function Login({ onLogin }) {
           <p className="login-subtitle">Enter your credentials to access your admit card</p>
         </div>
 
-        {!loginOpen && (
-          <div
-            className="error-message"
-            style={{ background: '#fff8e1', color: '#8a6d00', border: '1px solid #ffe08a', textAlign: 'center' }}
-          >
-            <strong>PG 2025 – 1st Semester result will be published today (14/10/2026) at 5:00 PM IST.</strong>
-            <br />
-            Please login after 5:00 PM.
-          </div>
-        )}
-
         {/* Login Form */}
         <form onSubmit={handleSubmit} className="login-form">
           <div className="form-group">
@@ -188,7 +157,7 @@ export default function Login({ onLogin }) {
               onChange={(e) => setRollNumber(e.target.value)}
               placeholder="Enter your roll number"
               required
-              disabled={loading || !loginOpen}
+              disabled={loading}
               autoComplete="off"
             />
           </div>
@@ -202,7 +171,7 @@ export default function Login({ onLogin }) {
               onChange={handleDateChange}
               placeholder="01-01-2005"
               required
-              disabled={loading || !loginOpen}
+              disabled={loading}
               maxLength="10"
               inputMode="numeric"
               autoComplete="off"
@@ -218,8 +187,8 @@ export default function Login({ onLogin }) {
             </div>
           )}
 
-          <button type="submit" className="login-btn" disabled={loading || !loginOpen}>
-            {loading ? 'Logging in...' : loginOpen ? 'Login' : 'Login opens at 5:00 PM'}
+          <button type="submit" className="login-btn" disabled={loading}>
+            {loading ? 'Logging in...' : 'Login'}
           </button>
         </form>
 
