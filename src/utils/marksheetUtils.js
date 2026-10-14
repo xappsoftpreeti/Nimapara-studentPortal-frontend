@@ -83,6 +83,8 @@ const normalizePaperCode = (value) => {
   const s = String(value ?? '').trim();
   const m = s.match(/^paper\s*(\d+)\.(\d+)$/i);
   if (m) return `PAPER${m[1]}.${m[2]}`;
+  const bare = s.match(/^(\d+)\.(\d+)$/);
+  if (bare) return `PAPER${bare[1]}.${bare[2]}`;
   return s.replace(/\s/g, '').toUpperCase();
 };
 
