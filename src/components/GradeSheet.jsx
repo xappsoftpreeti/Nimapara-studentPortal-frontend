@@ -9,13 +9,30 @@ import './GradeSheet.css';
 import { normalizeDeptKey, getPGRowMarks, sumPGTotals, toNum, resolveSemesterClassification } from '../utils/marksheetUtils';
 import { buildPGCourseLine } from '../utils/finalGradeSheetMapper';
 
-const SEMESTER_CHOICES_BY_YEAR = {
+const isPgStudent = (user) => String(user?.studentType || '').toUpperCase().startsWith('PG');
+
+const UG_SEMESTER_CHOICES = {
   '2024': [
     { value: '1', label: '1st Semester', hint: 'Major CP-1 & CP-2' },
     { value: '2', label: '2nd Semester', hint: 'Major CP-3 & CP-4' },
     { value: '3', label: '3rd Semester', hint: 'Major CP-5, CP-6 & CP-7' },
   ],
   '2025': [{ value: '1', label: '1st Semester', hint: 'Major CP-1 & CP-2' }],
+};
+
+const PG_SEMESTER_CHOICES = {
+  '2024': [
+    { value: '1', label: '1st Semester', hint: 'PG examination' },
+    { value: '2', label: '2nd Semester', hint: 'PG examination' },
+    { value: '3', label: '3rd Semester', hint: 'PG examination' },
+    { value: '4', label: '4th Semester', hint: 'PG examination' },
+  ],
+  '2025': [{ value: '1', label: '1st Semester', hint: 'PG examination' }],
+};
+
+const getSemesterChoices = (user, year) => {
+  const table = isPgStudent(user) ? PG_SEMESTER_CHOICES : UG_SEMESTER_CHOICES;
+  return table[year] || table['2024'];
 };
 
 const resolveAdmissionYear = (user) => {
@@ -25,7 +42,7 @@ const resolveAdmissionYear = (user) => {
   if (type.includes('2025')) return '2025';
   if (type.includes('2024')) return '2024';
   const roll = String(user?.autonomousRollNo || user?.['Autonomous Roll No'] || '').toUpperCase();
-  const fromRoll = roll.match(/NAC(?:BBA)?(\d{2})/);
+  const fromRoll = roll.match(/NAC(?:BBA|PG)?(\d{2})/) || roll.match(/PG(\d{2})/);
   if (fromRoll) return `20${fromRoll[1]}`;
   return '2024';
 };
@@ -89,8 +106,9 @@ const labelUgPaper = (courseType, selectedSem, majorCount) => {
 
 export default function GradeSheet({ user }) {
   const navigate = useNavigate();
+  const isPGUser = isPgStudent(user);
   const admissionYear = resolveAdmissionYear(user);
-  const semesterChoices = SEMESTER_CHOICES_BY_YEAR[admissionYear] || SEMESTER_CHOICES_BY_YEAR['2024'];
+  const semesterChoices = getSemesterChoices(user, admissionYear);
   const [data, setData] = useState(gradeSheetData);
   const [marksheetData, setMarksheetData] = useState(null);
   const [selectedYear, setSelectedYear] = useState(admissionYear);
@@ -103,11 +121,9 @@ export default function GradeSheet({ user }) {
 
   useEffect(() => {
     setSelectedYear(admissionYear);
-    const allowed = (SEMESTER_CHOICES_BY_YEAR[admissionYear] || SEMESTER_CHOICES_BY_YEAR['2024']).map(
-      (s) => s.value
-    );
+    const allowed = getSemesterChoices(user, admissionYear).map((s) => s.value);
     setSelectedSem((current) => (allowed.includes(current) ? current : '1'));
-  }, [admissionYear]);
+  }, [admissionYear, user]);
 
   useEffect(() => {
     if (!showGradeSheet || !selectedYear || !selectedSem) {
@@ -117,8 +133,6 @@ export default function GradeSheet({ user }) {
     fetchStudentData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, selectedSem, selectedYear, showGradeSheet]);
-
-  const isPGUser = String(user?.studentType || '').toUpperCase() === 'PG';
 
   const deptKeyForPgTable = useMemo(
     () => normalizeDeptKey(marksheetData?.department ?? data?.studentInfo?.course ?? ''),
@@ -356,7 +370,7 @@ export default function GradeSheet({ user }) {
         return;
       }
 
-      if (selectedSem === '2') {
+      if (selectedSem === '2' && selectedYear === '2024') {
         const { secondSem2024: secondSemRow, pgSecondSem2024 } =
           await fetchMarksheetsByRollNo(autonomousRollNo);
 
@@ -591,7 +605,7 @@ export default function GradeSheet({ user }) {
             <div className="gs-choice-grid">
               <div className="gs-choice is-active" role="status">
                 <strong>{selectedYear}</strong>
-                <span>Admission batch</span>
+                <span>{isPGUser ? 'PG admission batch' : 'UG admission batch'}</span>
               </div>
             </div>
 
