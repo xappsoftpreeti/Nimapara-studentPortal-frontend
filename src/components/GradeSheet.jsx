@@ -134,6 +134,11 @@ export default function GradeSheet({ user }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, selectedSem, selectedYear, showGradeSheet]);
 
+<<<<<<< HEAD
+=======
+  const isPGUser = String(user?.studentType || '').toUpperCase().startsWith('PG');
+
+>>>>>>> 288d5a31fe64cc37ad13de0bb8a36b1e35da044d
   const deptKeyForPgTable = useMemo(
     () => normalizeDeptKey(marksheetData?.department ?? data?.studentInfo?.course ?? ''),
     [marksheetData?.department, data?.studentInfo?.course]

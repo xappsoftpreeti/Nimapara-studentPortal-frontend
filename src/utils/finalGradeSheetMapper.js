@@ -32,12 +32,14 @@ const STATIC_COLLEGE = {
 
 export function buildPGCourseLine(departmentOrCourse, userCourse) {
   const fromUser = userCourse != null ? String(userCourse).trim() : '';
-  if (fromUser && fromUser.length > 3) return fromUser;
+  // 2025 records store only the department (e.g. "Odia") in `course`; accept full degree names only.
+  if (/^MASTER/i.test(fromUser)) return fromUser;
 
   const raw = departmentOrCourse == null ? '' : String(departmentOrCourse).trim();
   const u = raw.toUpperCase();
   if (!u) return 'POST GRADUATE PROGRAMME';
   if (u.includes('ODIA')) return 'MASTER OF ARTS IN ODIA';
+  if (u === 'MFC') return 'MASTER OF FINANCE AND CONTROL';
   if (u.includes('COMMERCE')) return 'MASTER IN COMMERCE';
   if (u.includes('CHEM')) return 'MASTER OF SCIENCE IN CHEMISTRY';
   if (u.includes('GEO')) return 'MASTER OF SCIENCE IN GEOLOGY';
