@@ -134,11 +134,6 @@ export default function GradeSheet({ user }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, selectedSem, selectedYear, showGradeSheet]);
 
-<<<<<<< HEAD
-=======
-  const isPGUser = String(user?.studentType || '').toUpperCase().startsWith('PG');
-
->>>>>>> 288d5a31fe64cc37ad13de0bb8a36b1e35da044d
   const deptKeyForPgTable = useMemo(
     () => normalizeDeptKey(marksheetData?.department ?? data?.studentInfo?.course ?? ''),
     [marksheetData?.department, data?.studentInfo?.course]
@@ -270,19 +265,17 @@ export default function GradeSheet({ user }) {
     let totalCreditPointsOut = toNum(secondSemRow?.TotalCreditPoint);
     let sgpaOut = toNum(secondSemRow?.SGPA);
 
-    if (isBBA) {
-      if (totalCreditsOut === null && sumRowCredits > 0) totalCreditsOut = sumRowCredits;
-      if (totalCreditPointsOut === null && sumRowCreditPoints > 0) {
-        totalCreditPointsOut = sumRowCreditPoints;
-      }
-      if (
-        sgpaOut === null &&
-        totalCreditsOut != null &&
-        totalCreditPointsOut != null &&
-        totalCreditsOut > 0
-      ) {
-        sgpaOut = Number((totalCreditPointsOut / totalCreditsOut).toFixed(2));
-      }
+    if (totalCreditsOut === null && sumRowCredits > 0) totalCreditsOut = sumRowCredits;
+    if (totalCreditPointsOut === null && sumRowCreditPoints > 0) {
+      totalCreditPointsOut = sumRowCreditPoints;
+    }
+    if (
+      sgpaOut === null &&
+      totalCreditsOut != null &&
+      totalCreditPointsOut != null &&
+      totalCreditsOut > 0
+    ) {
+      sgpaOut = Number((totalCreditPointsOut / totalCreditsOut).toFixed(2));
     }
 
     return {
@@ -375,85 +368,85 @@ export default function GradeSheet({ user }) {
         return;
       }
 
-      if (selectedSem === '2' && selectedYear === '2024') {
-        const { secondSem2024: secondSemRow, pgSecondSem2024 } =
-          await fetchMarksheetsByRollNo(autonomousRollNo);
+      const {
+        marksheets,
+        studentInfo: apiStudentInfo,
+        secondSem2024: secondSemRow,
+        pgSecondSem2024,
+      } = await fetchMarksheetsByRollNo(autonomousRollNo);
 
-        // PG 2nd sem (camelCase row from pg2ndsem2024)
-        if (pgSecondSem2024) {
-          setMarksheetData(buildPGSecondSemMarksheetData(pgSecondSem2024));
+      if (selectedSem === '2' && selectedYear === '2024' && pgSecondSem2024) {
+        setMarksheetData(buildPGSecondSemMarksheetData(pgSecondSem2024));
 
-          const courseName = formatCourseName(pgSecondSem2024.department || pgSecondSem2024.course);
-          const detectedLanguage = detectMediumOfExam(courseName || pgSecondSem2024.department || pgSecondSem2024.course);
+        const courseName = formatCourseName(pgSecondSem2024.department || pgSecondSem2024.course);
+        const detectedLanguage = detectMediumOfExam(courseName || pgSecondSem2024.department || pgSecondSem2024.course);
 
-          setData((prevData) => ({
-            ...prevData,
-            studentInfo: {
-              ...prevData.studentInfo,
-              name: pgSecondSem2024.applicantName || prevData.studentInfo.name,
-              examRollNo: pgSecondSem2024.collegeRollNo || prevData.studentInfo.examRollNo,
-              registrationNo:
-                pgSecondSem2024.autonomousRollNo || prevData.studentInfo.registrationNo,
-              mediumOfExam: detectedLanguage || prevData.studentInfo.mediumOfExam,
-              course: courseName ? buildPGCourseLine(courseName, user?.course) : prevData.studentInfo.course,
-              coreTwo: '',
-            },
-          }));
+        setData((prevData) => ({
+          ...prevData,
+          studentInfo: {
+            ...prevData.studentInfo,
+            name: pgSecondSem2024.applicantName || prevData.studentInfo.name,
+            examRollNo: pgSecondSem2024.collegeRollNo || prevData.studentInfo.examRollNo,
+            registrationNo:
+              pgSecondSem2024.autonomousRollNo || prevData.studentInfo.registrationNo,
+            mediumOfExam: detectedLanguage || prevData.studentInfo.mediumOfExam,
+            course: courseName ? buildPGCourseLine(courseName, user?.course) : prevData.studentInfo.course,
+            coreTwo: '',
+          },
+        }));
 
-          return;
-        }
-
-        if (secondSemRow) {
-          const apiStudentInfo = {
-            name: secondSemRow['Name of the Students'],
-            autonomousRollNo: secondSemRow['Autonomous Roll No'],
-            rollNo: secondSemRow['Roll No'],
-            department: secondSemRow.Department,
-          };
-
-          setMarksheetData(buildSecondSemMarksheetData(secondSemRow));
-
-          const isBbaRow =
-            String(secondSemRow?.Department || '').toUpperCase().includes('BBA') ||
-            secondSemRow?.['CC-201'] != null;
-          const minorSubject = isBbaRow
-            ? secondSemRow?.['CC-202']?.Subject || ''
-            : secondSemRow?.['MINOR-2(20)']?.Subject || '';
-          const aecSubject = isBbaRow
-            ? secondSemRow?.['AEC-201']?.Subject || ''
-            : secondSemRow?.['AEC-2']?.Subject || '';
-          const detectedLanguage =
-            String(aecSubject).toLowerCase().includes('odia')
-              ? 'ODIA'
-              : detectMediumOfExam(apiStudentInfo.department);
-
-          setData(prevData => ({
-            ...prevData,
-            studentInfo: {
-              ...prevData.studentInfo,
-              name: apiStudentInfo.name || prevData.studentInfo.name,
-              examRollNo: apiStudentInfo.rollNo || prevData.studentInfo.examRollNo,
-              registrationNo: apiStudentInfo.autonomousRollNo || prevData.studentInfo.registrationNo,
-              mediumOfExam: detectedLanguage || prevData.studentInfo.mediumOfExam,
-              course:
-                formatDepartmentCourse(apiStudentInfo.department) ||
-                (isBbaRow ? 'BBA' : prevData.studentInfo.course),
-              coreTwo: minorSubject ? `CORE-2: ${String(minorSubject).toUpperCase()}` : prevData.studentInfo.coreTwo,
-            }
-          }));
-        }
         return;
       }
 
-      const { marksheets, studentInfo: apiStudentInfo } = await fetchMarksheetsByRollNo(autonomousRollNo);
       const semMarksheet = (marksheets || []).find((m) => String(m.semester) === String(selectedSem));
+
+      if (!semMarksheet && selectedSem === '2' && selectedYear === '2024' && secondSemRow) {
+        const rowStudentInfo = {
+          name: secondSemRow['Name of the Students'],
+          autonomousRollNo: secondSemRow['Autonomous Roll No'],
+          rollNo: secondSemRow['Roll No'],
+          department: secondSemRow.Department,
+        };
+
+        setMarksheetData(buildSecondSemMarksheetData(secondSemRow));
+
+        const isBbaRow =
+          String(secondSemRow?.Department || '').toUpperCase().includes('BBA') ||
+          secondSemRow?.['CC-201'] != null;
+        const minorSubject = isBbaRow
+          ? secondSemRow?.['CC-202']?.Subject || ''
+          : secondSemRow?.['MINOR-2(20)']?.Subject || '';
+        const aecSubject = isBbaRow
+          ? secondSemRow?.['AEC-201']?.Subject || ''
+          : secondSemRow?.['AEC-2']?.Subject || '';
+        const detectedLanguage =
+          String(aecSubject).toLowerCase().includes('odia')
+            ? 'ODIA'
+            : detectMediumOfExam(rowStudentInfo.department);
+
+        setData((prevData) => ({
+          ...prevData,
+          studentInfo: {
+            ...prevData.studentInfo,
+            name: rowStudentInfo.name || prevData.studentInfo.name,
+            examRollNo: rowStudentInfo.rollNo || prevData.studentInfo.examRollNo,
+            registrationNo: rowStudentInfo.autonomousRollNo || prevData.studentInfo.registrationNo,
+            mediumOfExam: detectedLanguage || prevData.studentInfo.mediumOfExam,
+            course:
+              formatDepartmentCourse(rowStudentInfo.department) ||
+              (isBbaRow ? 'BBA' : prevData.studentInfo.course),
+            coreTwo: minorSubject ? `CORE-2: ${String(minorSubject).toUpperCase()}` : prevData.studentInfo.coreTwo,
+          },
+        }));
+        return;
+      }
 
       if (!semMarksheet) {
         setErrorMessage(`No grade sheet is available for semester ${selectedSem}.`);
         return;
       }
 
-      if (apiStudentInfo) {
+      {
         let publicationDate = data.publicationDate;
         if (semMarksheet.createdAt) {
           const date = new Date(semMarksheet.createdAt);
@@ -466,20 +459,32 @@ export default function GradeSheet({ user }) {
         const ugCourses = isPGUser
           ? semMarksheet.courses || []
           : sortUgCourses(semMarksheet.courses || []);
+        const summedCredits = (ugCourses || []).reduce(
+          (sum, c) => sum + (typeof c?.credit === 'number' ? c.credit : 0),
+          0
+        );
+        const summedCreditPoints = (ugCourses || []).reduce(
+          (sum, c) => sum + (typeof c?.creditPoint === 'number' ? c.creditPoint : 0),
+          0
+        );
 
         setMarksheetData({
           courses: ugCourses,
-          totalCredits: semMarksheet.totalCredits || 0,
-          totalCreditPoints: semMarksheet.totalCreditPoints || 0,
+          totalCredits: semMarksheet.totalCredits || summedCredits || 0,
+          totalCreditPoints: semMarksheet.totalCreditPoints || summedCreditPoints || 0,
           totalGradePoints: Number(((ugCourses || []).reduce((sum, c) => sum + (typeof c?.gradePoint === 'number' ? c.gradePoint : 0), 0)).toFixed(2)),
-          sgpa: semMarksheet.sgpa || 0,
+          sgpa:
+            semMarksheet.sgpa ||
+            (summedCredits > 0 ? Number((summedCreditPoints / summedCredits).toFixed(2)) : 0),
           publicationDate,
           classification: resolveSemesterClassification(
             semMarksheet.classification,
             ugCourses
           )
         });
+      }
 
+      if (apiStudentInfo) {
         const deptFromApi = formatCourseName(apiStudentInfo?.department);
         const looksPG = isPGUser;
         const language = looksPG ? detectMediumOfExam(deptFromApi || apiStudentInfo?.department) : 'ENGLISH';
